@@ -1,4 +1,5 @@
-use rustmal::step0_repl::rep;
+//use rustmal::step0_repl::rep;
+use rustmal::step1_read_print::rep;
 
 use rustyline::Editor;
 
@@ -10,7 +11,7 @@ fn main() {
             Ok(line) => println!("{}", rep(&line)),
             Err(err) => {
                 println!("Error: {:?}", err);
-                break
+                break;
             }
         }
     }
