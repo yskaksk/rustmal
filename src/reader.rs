@@ -1,8 +1,7 @@
 use once_cell::sync::OnceCell;
 use regex::Regex;
 
-use crate::types::MalType;
-use crate::types::MalType::{MalList, MalNumber, MalSymbol};
+use crate::types::MalType::{self, *};
 
 pub struct Reader {
     tokens: Vec<String>,
@@ -59,10 +58,10 @@ fn is_int(string: &String) -> bool {
 
 fn read_form(reader: &mut Reader) -> MalType {
     if let Some(token) = reader.peek() {
-        if token.chars().nth(0).unwrap() == '(' {
-            return read_list(reader);
-        } else {
-            return read_atom(reader);
+        match token.chars().nth(0).unwrap() {
+            '(' => return read_list(reader),
+            '[' => return read_vector(reader),
+            _ => read_atom(reader),
         }
     } else {
         eprintln!("empty code");
@@ -71,26 +70,43 @@ fn read_form(reader: &mut Reader) -> MalType {
 }
 
 fn read_list(reader: &mut Reader) -> MalType {
-    let start = reader.next();
-    if start.chars().nth(0).unwrap() != '(' {
-        eprintln!("not list");
-        std::process::exit(1)
-    }
-    let mut ast: Vec<MalType> = vec![];
-    loop {
-        if let Some(token) = reader.peek() {
-            if token.chars().nth(0).unwrap() == ')' {
-                return MalList { elm: ast };
-            } else {
-                ast.push(read_form(reader))
-            }
-        } else {
-            eprintln!("expected right paren ) but not");
-            std::process::exit(1)
-        }
+    match read_container_elm(reader, '(', ')') {
+        Ok(ast) => MalList { elm: ast },
+        Err(e) => MalError(e),
     }
 }
 
+fn read_vector(reader: &mut Reader) -> MalType {
+    match read_container_elm(reader, '[', ']') {
+        Ok(ast) => MalVector { elm: ast },
+        Err(e) => MalError(e),
+    }
+}
+
+fn read_container_elm(
+    reader: &mut Reader,
+    left: char,
+    right: char,
+) -> Result<Vec<MalType>, String> {
+    let start = reader.next();
+    if start.chars().nth(0).unwrap() != left {
+        return Err(format!("expected {} but not", left));
+    }
+    let mut ast: Vec<MalType> = vec![];
+    let mut token = reader.peek().unwrap();
+    while token.chars().nth(0).unwrap() != right {
+        ast.push(read_form(reader));
+        if let Some(tk) = reader.peek() {
+            token = tk;
+        } else {
+            return Err(format!("expected {} but not", right));
+        }
+    }
+    reader.next();
+    return Ok(ast);
+}
+
+// number | bool | nil | symbol | keyword
 fn read_atom(reader: &mut Reader) -> MalType {
     let token = reader.next();
     if is_int(&token) {
@@ -105,7 +121,15 @@ fn read_atom(reader: &mut Reader) -> MalType {
         }
         return MalNumber(r as i32);
     } else {
-        return MalSymbol(String::from(token));
+        match token.as_str() {
+            "true" => MalBool(true),
+            "false" => MalBool(false),
+            "nil" => MalNil,
+            _ => match token.chars().nth(0).unwrap() {
+                ':' => MalKeyword(format!("\u{029e}{}", &token[1..])),
+                _ => MalSymbol(String::from(token)),
+            },
+        }
     }
 }
 
