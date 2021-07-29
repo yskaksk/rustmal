@@ -1,4 +1,3 @@
-//use rustmal::step0_repl::rep;
 use rustmal::step1_read_print::rep;
 
 use rustyline::Editor;
